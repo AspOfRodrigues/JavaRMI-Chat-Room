@@ -14,14 +14,17 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
     public String name;
     public IServerChat server;
     public IRoomChat room;
+    public ArrayList<String> roomList;
     public boolean IsConnected;
     public boolean ShouldSendMessage;
     private JFrame frame;
     private JTextField messageTextField;
+    private JTextField roomNameCreation;
     JButton joinButton;
     JButton refreshButton;
     JButton leaveButton;
     JButton sendButton;
+    JButton createButton;
     JScrollPane roomPanel;
     JList swingRoomList;
     JScrollPane messageScrollPanel;
@@ -30,7 +33,6 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
     JLabel userName;
 
     public void JoinRoomEvent(String roomName) throws MalformedURLException, NotBoundException, RemoteException {
-        ArrayList<String> roomList = server.getRooms();
         Scanner scanner = new Scanner(System.in);
         if (roomList.contains(roomName)) {
             String roomUrl = "rmi://localhost:2020/" + roomName;
@@ -41,8 +43,7 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
     }
 
     public void UpdateRooms() throws RemoteException, MalformedURLException, NotBoundException {
-        IServerChat server = (IServerChat) Naming.lookup("rmi://localhost:2020/RMIChatServer");
-        ArrayList<String> roomList = server.getRooms();
+        roomList = server.getRooms();
         DefaultListModel lm = new DefaultListModel();
 
         for (String roomName : roomList) {
@@ -57,33 +58,42 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
         this.name = name;
         this.IsConnected = false;
         this.ShouldSendMessage = false;
-        this.server = (IServerChat) Naming.lookup("rmi://localhost:2020/RMIChatServer");
+        this.server = (IServerChat) Naming.lookup("rmi://localhost:2020/Servidor");
 
 
     }
 
     @Override
-    public void deliverMsg(String senderName, String msg) {
+    public void deliverMsg(String senderName, String msg) throws RemoteException {
         textArea.append(senderName + ":" + msg + "\n");
-        System.out.println(senderName + ":" + msg);
+        
+        if(senderName.equals("SERVIDOR") && msg.equals("Sala fechada pelo servidor")){
+            roomList.remove(room.getRoomName());
+            room = null;
+            roomName.setText("");
+
+            DefaultListModel lm = new DefaultListModel();
+            for (String roomName : roomList) {
+                System.out.println(roomName);
+                lm.addElement(roomName);
+            }
+            swingRoomList.setModel(lm);
+        }
     }
 
     public static void main(String[] args) throws RemoteException, MalformedURLException, NotBoundException {
-
         System.out.println("Insert your name:");
         Scanner scanner = new Scanner(System.in);
         String name = scanner.nextLine();
 
-
-
-        UserChat user = new UserChat(name);
-        user.initialize();
-        if (name.equals("Servidor")) {
+        if (name.equals("SERVIDOR")) {
             System.out.println("Este é um nome protegido, por favor escolha outro nome");
             scanner.close();
             return;
         }
 
+        UserChat user = new UserChat(name);
+        user.initialize();
 
         scanner.close();
     }
@@ -98,6 +108,7 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
         joinButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 try {
+                    if(swingRoomList.getSelectedValue() == null) return;
                     JoinRoomEvent(swingRoomList.getSelectedValue().toString());
                     textArea.setText("");
                     room.sendMsg(name, "has Joined");
@@ -139,10 +150,12 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
         leaveButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 try {
+                    if(room == null) return;
                     room.leaveRoom(name);
                     room.sendMsg(name,"quit");
                     textArea.setText("");
-                    System.out.println(name + " quit");
+                    room = null;
+                    roomName.setText("Room Name");
                 } catch (RemoteException remoteException) {
                     remoteException.printStackTrace();
                 }
@@ -161,6 +174,7 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
         sendButton.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 try {
+                    if(messageTextField.getText().isEmpty() || room == null) return;
                     room.sendMsg(name, messageTextField.getText());
                     messageTextField.setText("");
                 } catch (RemoteException remoteException) {
@@ -170,23 +184,38 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
         });
 
         roomPanel = new JScrollPane();
-        roomPanel.setBounds(10, 45, 85, 304);
+        roomPanel.setBounds(10, 45, 85, 240);
         frame.getContentPane().add(roomPanel);
 
         swingRoomList = new JList();
         UpdateRooms();
-        /*
-        swingRoomList.setModel(new AbstractListModel() {
-            String[] values = new String[] { "Available Rooms" , "Please Refresh"};
-            public int getSize() {
-                return values.length;
-            }
-            public Object getElementAt(int index) {
-                return values[index];
+        roomPanel.setViewportView(swingRoomList);
+
+        roomNameCreation = new JTextField();
+        roomNameCreation.setBounds(10, 290, 85, 21);
+        frame.getContentPane().add(roomNameCreation);
+        roomNameCreation.setColumns(10);
+
+        createButton = new JButton("Request creation");
+        createButton.setBounds(10, 312, 85, 21);
+        frame.getContentPane().add(createButton);
+
+        createButton.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                try {
+                    String createRoomName = roomNameCreation.getText();
+                    if(createRoomName.isEmpty()) return;
+                    server.createRoom(createRoomName);
+                    UpdateRooms();
+                } catch (RemoteException remoteException) {
+                    remoteException.printStackTrace();
+                } catch (MalformedURLException malformedURLException) {
+                    malformedURLException.printStackTrace();
+                } catch (NotBoundException notBoundException) {
+                    notBoundException.printStackTrace();
+                }
             }
         });
-         */
-        roomPanel.setViewportView(swingRoomList);
 
         messageScrollPanel = new JScrollPane();
         messageScrollPanel.setBounds(116, 45, 570, 377);
