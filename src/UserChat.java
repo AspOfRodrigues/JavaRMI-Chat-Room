@@ -39,6 +39,7 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
             room = (IRoomChat) Naming.lookup(roomUrl);
             room.joinRoom(this.name, this);
             System.out.println(name + " has joined");
+            joinButton.setVisible(false);
         }
     }
 
@@ -66,11 +67,12 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
     @Override
     public void deliverMsg(String senderName, String msg) throws RemoteException {
         textArea.append(senderName + ":" + msg + "\n");
-        
+
         if(senderName.equals("SERVIDOR") && msg.equals("Sala fechada pelo servidor")){
             roomList.remove(room.getRoomName());
             room = null;
             roomName.setText("");
+            joinButton.setVisible(true);
 
             DefaultListModel lm = new DefaultListModel();
             for (String roomName : roomList) {
@@ -156,6 +158,7 @@ public class UserChat extends UnicastRemoteObject implements IUserChat {
                     textArea.setText("");
                     room = null;
                     roomName.setText("Room Name");
+                    joinButton.setVisible(true);
                 } catch (RemoteException remoteException) {
                     remoteException.printStackTrace();
                 }
